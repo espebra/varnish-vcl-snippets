@@ -4,6 +4,9 @@
 # response. It allows potentially very old content to be served if the backend
 # is sick and only slighly old content to be served if the backend is healthy.
 #
+# Please note that health checks are required for this to work since Varnish
+# must know if the backend is actually unhealthy or healthy.
+#
 varnishtest "Extended grace in Varnish Cache 4"
 
 # Two different backend requests are expected.
