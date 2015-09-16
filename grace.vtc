@@ -53,7 +53,7 @@ varnish v1 -vcl {
 			return (deliver);
 		}
 
-		# The object is not in cache, and our response will depend on
+		# The object is in cache, but outside TTL and our response will depend on
 		# the status of the backend.
 		if (std.healthy(req.backend_hint)) {
 			# The backend is healthy, so we want to serve
