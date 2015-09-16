@@ -1,3 +1,9 @@
+# This configuration shows how grace can be configured in Varnish Cache 4.
+#
+# It sets the grace period based on the content-type header in the backend
+# response. It allows potentially very old content to be served if the backend
+# is sick and only slighly old content to be served if the backend is healthy.
+#
 varnishtest "Extended grace in Varnish Cache 4"
 
 # Two different backend requests are expected.
