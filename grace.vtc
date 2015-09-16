@@ -1,0 +1,179 @@
+varnishtest "Extended grace in Varnish Cache 4"
+
+# Two different backend requests are expected.
+server s1 {
+	rxreq
+	txresp
+	expect req.url == "/"
+
+	rxreq
+	txresp -hdr "content-type: image/jpeg"
+	expect req.url == "/someimage"
+} -start
+
+varnish v1 -vcl {
+	import std;
+	backend b1 {
+		.host = "${s1_addr}";
+		.port = "${s1_port}";
+	}
+	
+	sub vcl_recv {
+		# Set the default value of the grace header.
+		set req.http.grace = "none";
+	}
+	
+	sub vcl_backend_response {
+		# Set different TTL and grace limits based on the content-type
+		# header in the backend response.
+		if (beresp.http.content-type ~ "^image") {
+			set beresp.ttl = 3s;
+			# Do not set grace for images.
+		} else {
+			# Set slightly higher TTL and a grace period for
+			# everything else.
+			set beresp.ttl = 5s;
+			set beresp.grace = 55s;
+		}
+	}
+	
+	sub vcl_hit {
+		# The object is in cache and is within TTL.
+		if (obj.ttl >= 0s) {
+			# normal hit
+			return (deliver);
+		}
+
+		# The object is not in cache, and our response will depend on
+		# the status of the backend.
+		if (std.healthy(req.backend_hint)) {
+			# The backend is healthy, so we want to serve
+			# fresh content. At the same time we don't want the
+			# client to wait for the backend to deliver.
+			# The solution is to allow content to be stale for up
+			# to 10 seconds, just enough to allow Varnish to fetch
+			# a fresh object in the background.
+			if (obj.ttl + 10s > 0s) {
+				set req.http.grace = "normal(limited)";
+				return (deliver);
+			} else {
+				# The age of the object in cache is older than
+				# our limit, so do not serve stale content
+				# here.
+				return(fetch);
+			}
+		} else {
+			# Our backend is sick, and our content should be served
+			# gracefully whenever possible.
+			if (obj.ttl + obj.grace > 0s) {
+				set req.http.grace = "full";
+				return (deliver);
+			} else {
+				# No graced object.
+				return (fetch);
+			}
+		}
+	}
+	
+	sub vcl_deliver {
+		set resp.http.grace = req.http.grace;
+	}
+} -start
+
+# Start out with a healthy backend
+varnish v1 -cliok "backend.set_health b1 healthy"
+
+# Backend is up, normal operations
+client c1 {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.grace == "none"
+
+	delay 0.1;
+
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.grace == "none"
+} -run
+
+client c2 {
+	txreq -url "/someimage"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.grace == "none"
+
+	delay 0.1;
+
+	txreq -url "/someimage"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.grace == "none"
+} -run
+
+
+# Sleeping to get outside TTL on /someimage while still being within TTL on /
+delay 3s;
+
+client c3 {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.grace == "none"
+} -run
+
+client c4 {
+	txreq -url "/someimage"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.grace == "normal(limited)"
+} -run
+
+# Sleep some more to get outside TTL on /
+delay 2s;
+
+client c5 {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.grace == "normal(limited)"
+} -run
+
+# Set the backend to unhealthy to simulate failure
+varnish v1 -cliok "backend.set_health b1 sick"
+
+client c6 {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.grace == "full"
+} -run
+
+client c7 {
+	txreq -url "/someimage"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.grace == "full"
+} -run
+
+delay 15s;
+
+# The response to this request is outside TTL and outside normal grace.
+# However, since the backend is sick we get served a fully graced object.
+client c8 {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.grace == "full"
+} -run
+
+# The response to this request is outside TTL and outside normal grace.
+# Even though the backend is sick we do not get served a fully graced object
+# since we didn't specify beresp.grace for this content-type in
+# vcl_backend_response. The backend respose is sent even though the backend
+# is flagged as unhealthy/sick.
+#client c9 {
+#	txreq -url "/someimage"
+#	rxresp
+#} -run
