@@ -1,0 +1,1 @@
+# varnish-vcl-snippets
