@@ -16,6 +16,10 @@ server s2 {
 	rxreq
 	txresp -hdr "cache-control: max-age=1" -body "bar"
 	expect req.url == "/esifragment"
+
+	rxreq
+	txresp -hdr "cache-control: max-age=1" -body "baz"
+	expect req.url == "/esifragment"
 } -start
 
 varnish v1 -vcl {
@@ -46,20 +50,58 @@ varnish v1 -vcl {
 
 varnish v1 -cliok "param.set feature +esi_disable_xml_check"
 
+# Cache miss on both the parent and fragment
 client c1 {
 	txreq -url "/esiparent"
 	rxresp
 	expect resp.body == "Fragment said foo"
 	expect resp.status == 200
+        expect resp.http.age == 0
+} -run
+
+# Cache hit on the parent.
+# Cache hit on the fragment.
+client c2 {
+	txreq -url "/esiparent"
+	rxresp
+	expect resp.body == "Fragment said foo"
+	expect resp.status == 200
+        expect resp.http.age == 0
 } -run
 
 delay 1.1s;
 
-client c2 {
+# Cache hit on the parent.
+# Cache hit on the fragment within grace (which by default is 10 seconds).
+# This request will initiate a background fetch of the fragment.
+client c3 {
+	txreq -url "/esiparent"
+	rxresp
+	expect resp.body == "Fragment said foo"
+	expect resp.status == 200
+        expect resp.http.age == 1
+} -run
+
+# Cache hit on the parent.
+# Cache hit on the fragment with the new fragment.
+client c4 {
 	txreq -url "/esiparent"
 	rxresp
 	expect resp.body == "Fragment said bar"
 	expect resp.status == 200
+        expect resp.http.age == 1
+} -run
+
+delay 11s;
+
+# Cache hit on the parent.
+# Cache miss on the fragment outside the grace period.
+client c5 {
+	txreq -url "/esiparent"
+	rxresp
+	expect resp.body == "Fragment said baz"
+	expect resp.status == 200
+        expect resp.http.age == 12
 } -run
 
 varnish v1 -expect esi_errors == 0
