@@ -5,6 +5,7 @@
 The purpose of this repository is to gather a set of VCL snippets for specific use cases. The files should include comments and tests.
 
 * [Grace mode and stale-while-revalidate](grace.vtc)
+* [Edge Side Includes (ESI)](esi.vtc)
 
 Pull requests are welcome.
 

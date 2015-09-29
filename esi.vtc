@@ -1,0 +1,65 @@
+varnishtest "ESI in Varnish 4"
+
+# ESI parent response
+server s1 {
+	rxreq
+	txresp -hdr "cache-control: max-age=15" -body {Fragment said <esi:include src="/esifragment" />}
+	expect req.url == "/esiparent"
+} -start
+
+# ESI fragment responses
+server s2 {
+	rxreq
+	txresp -hdr "cache-control: max-age=1" -body "foo"
+	expect req.url == "/esifragment"
+
+	rxreq
+	txresp -hdr "cache-control: max-age=1" -body "bar"
+	expect req.url == "/esifragment"
+} -start
+
+varnish v1 -vcl {
+	backend b1 {
+		.host = "${s1_addr}";
+		.port = "${s1_port}";
+	}
+
+	backend b2 {
+		.host = "${s2_addr}";
+		.port = "${s2_port}";
+	}
+
+	sub vcl_recv {
+		if (req.url == "/esiparent") {
+			set req.backend_hint = b1;
+		} else {
+			set req.backend_hint = b2;
+		}
+	}
+
+	sub vcl_backend_response {
+		if (bereq.url == "/esiparent") {
+			set beresp.do_esi = true;
+		}
+	}
+} -start
+
+varnish v1 -cliok "param.set feature +esi_disable_xml_check"
+
+client c1 {
+	txreq -url "/esiparent"
+	rxresp
+	expect resp.body == "Fragment said foo"
+	expect resp.status == 200
+} -run
+
+delay 1.1s;
+
+client c2 {
+	txreq -url "/esiparent"
+	rxresp
+	expect resp.body == "Fragment said bar"
+	expect resp.status == 200
+} -run
+
+varnish v1 -expect esi_errors == 0
