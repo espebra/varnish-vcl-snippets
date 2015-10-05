@@ -1,0 +1,72 @@
+# Retry a backend request if the backend is unstable and sometimes just closes
+# the connection from Varnish.
+
+server s1 {
+	# Normal behaviour when the backend response properly
+	rxreq
+	expect req.url == "/normal"
+	txresp
+
+	# Unexpected bahaviour when the backend closes the connection
+	rxreq
+	expect req.url == "/retry"
+	close
+	accept
+
+	rxreq
+	expect req.url == "/retry"
+	close
+	accept
+
+	rxreq
+	expect req.url == "/retry"
+	close
+	accept
+
+	rxreq
+	expect req.url == "/retry"
+	close
+	accept
+
+	rxreq
+	expect req.url == "/retry"
+	close
+	accept
+
+	rxreq
+	expect req.url == "/retry"
+	txresp
+} -start
+
+varnish v1 -vcl+backend {
+	sub vcl_backend_error {
+		# Retry on 503 response status codes until the max_retries
+		# parameter is hit.
+		if (beresp.status == 503) {
+			set beresp.http.X-Retried = bereq.retries;
+			return (retry);
+		}
+	}
+
+	sub vcl_backend_response {
+		if (bereq.retries > 0) {
+			# Add the number of retries to the client response
+			set beresp.http.X-Retried = bereq.retries;
+		}
+	}
+} -start
+
+client c1 {
+	# Normal behaviour when the backend response properly
+	txreq -url "/normal"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.X-Retried == <undef>
+
+	# Unexpected bahaviour when the backend closes the connection
+	txreq -url "/retry"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.X-Retried == 4
+} -run
+
