@@ -12,3 +12,7 @@ Show the the ``5XX`` responses and their requests:
 
     # varnishlog -g request -q 'RespStatus >= 500'
 
+Show old log entries from using the ``-d`` parameter:
+
+    # varnishlog -g request -d -q 'RespStatus >= 500'
+
