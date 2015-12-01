@@ -1,0 +1,84 @@
+# Gracefully handle backend failures by retrying the request to one of the
+# other backends in a round robin director.
+#
+
+# Backend that just serves 503
+server s1 {
+	rxreq
+	txresp -status 503
+	expect req.url == "/"
+} -start
+
+# Backend that just closes the connection
+server s2 {
+	rxreq
+	expect req.url == "/"
+	close
+	accept
+} -start
+
+# Finally a backend that responds properly
+server s3 {
+	rxreq
+	expect req.url == "/"
+	txresp -status 200 -body "Some valid content"
+} -start
+
+varnish v1 -vcl {
+	vcl 4.0;
+	import ${vmod_directors};
+
+	backend s1 {
+		.host = "${s1_addr}";
+		.port = "${s1_port}";
+	}
+
+	backend s2 {
+		.host = "${s2_addr}";
+		.port = "${s2_port}";
+	}
+
+	backend s3 {
+		.host = "${s3_addr}";
+		.port = "${s3_port}";
+	}
+
+	sub vcl_init {
+		new d = directors.round_robin();
+		d.add_backend(s1);
+		d.add_backend(s2);
+		d.add_backend(s3);
+	}
+
+	sub vcl_backend_fetch {
+		# Use the director for the backend fetch
+		set bereq.backend = d.backend();
+	}
+
+	sub vcl_backend_response {
+		# Set some headers that the client can use to verify
+		set beresp.http.backend = beresp.backend.name;
+		set beresp.http.X-Retried = bereq.retries;
+
+		if (beresp.status == 503) {
+			# Not happy with the response. Try again.
+			return(retry);
+		}
+	}
+
+	sub vcl_backend_error {
+		if (beresp.status == 503) {
+			# Not happy with the response. Try again.
+			return(retry);
+		}
+	}
+} -start
+
+client c1 {
+	txreq -url "/"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.backend == "s3"
+	expect resp.http.x-retried == "2"
+	expect resp.body == "Some valid content"
+} -run
