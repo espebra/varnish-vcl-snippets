@@ -7,8 +7,8 @@ The purpose of this repository is to gather a set of VCL snippets for specific u
 * [Grace mode and stale-while-revalidate](grace.vtc)
 * [Edge Side Includes (ESI)](esi.vtc)
 * [Retry a backend request when using a single backend](retry-single-backend.vtc)
-* [Retry a backend request when using a round-robin director](retry-round-robin-director.vtc)
-* [Retry a backend request when using a random director](retry-random-director.vtc)
+* [Retry a backend request to a new backend when using a round-robin director](retry-round-robin-director.vtc)
+* [Retry a backend request to a new backend when using a random director](retry-random-director.vtc)
 
 Pull requests are welcome.
 
