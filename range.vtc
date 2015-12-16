@@ -1,0 +1,32 @@
+varnishtest "Default range request handling"
+
+server s1 {
+        rxreq
+        expect req.url == /
+        expect req.method == GET
+        txresp -status 200 -body foobar
+} -start
+
+varnish v1 -vcl+backend {
+} -start
+
+# Ask for the first half of the content.
+# Expect a cache miss.
+client c1 {
+        txreq -url / -hdr "range: bytes=0-2"
+        rxresp
+        expect resp.status == 206
+        expect resp.body == foo
+} -run
+
+delay 1.0;
+
+# Ask for the second half of the content.
+# Expect a cache hit.
+client c2 {
+        txreq -url / -hdr "range: bytes=3-5"
+        rxresp
+        expect resp.status == 206
+        expect resp.body == bar
+        expect resp.http.age == 1
+} -run
