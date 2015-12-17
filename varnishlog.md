@@ -16,3 +16,10 @@ Show old log entries from using the ``-d`` parameter:
 
     # varnishlog -g request -d -q 'RespStatus >= 500'
 
+Filter away client requests that contain the request header ``foo``:
+
+    # varnishlog -g request -q "not ReqHeader:foo"
+
+Filter away backend responses that contain the response header ``bar``:
+
+    # varnishlog -g request -q "not BerespHeader:bar"
