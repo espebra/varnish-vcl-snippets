@@ -12,7 +12,10 @@ server s1 {
     txresp -hdr "foo: baz"
 } -start
 
-varnish v1 -vcl+backend {
+# By default, the ban lurker will not process fresh bans. For this example,
+# the age limit is set to 0 to get the lurker to process bans immediately to
+# make the test run faster.
+varnish v1 -arg "-p ban_lurker_age=0" -vcl+backend {
 	sub vcl_recv {
 		if (req.method == "BAN") {
 			ban("obj.http.x-url == " + req.url + " && obj.http.x-host == " + req.http.host); 
@@ -62,8 +65,15 @@ client c3 {
 } -run
 
 # The ban.list will have one entry since a ban was just added
-varnish v1 -expect bans == 2
 varnish v1 -cliok "ban.list"
+varnish v1 -expect bans == 2
+
+# Sleep to let the ban lurker run and do its job
+delay 0.02;
+
+# Expect at this point that the ban that was just added has been cleared.
+varnish v1 -cliok "ban.list"
+varnish v1 -expect bans == 1
 
 # Third GET request will be a cache miss because of the ban.
 client c4 {
