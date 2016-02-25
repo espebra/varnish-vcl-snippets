@@ -1,0 +1,76 @@
+# This is an example on how to do lurker friendly bans. Since this example is
+# using exact match on host and URL, purge would be a more effective approach
+# for invalidation.
+
+varnishtest "Lurker friendly ban example"
+
+server s1 {
+    rxreq
+    txresp -hdr "foo: bar"
+
+    rxreq
+    txresp -hdr "foo: baz"
+} -start
+
+varnish v1 -vcl+backend {
+	sub vcl_recv {
+		if (req.method == "BAN") {
+			ban("obj.http.x-url == " + req.url + " && obj.http.x-host == " + req.http.host); 
+			return(synth(201, "Ban added"));
+		}
+	}
+
+	sub vcl_backend_response {
+		# Temporary store the host header and URL as part of the
+		# object.
+		set beresp.http.x-url = bereq.url;
+		set beresp.http.x-host = bereq.http.host;
+	}
+
+	sub vcl_deliver {
+		# Clean up the response by removing the temporary headers on
+		# the way out.
+		unset resp.http.x-url;
+		unset resp.http.x-host;
+	}
+} -start
+
+# Initial request. Will be a cache miss, and inserted into the cache with
+# default TTL of 120 seconds.
+client c1 {
+	txreq -url "/" -hdr "host: example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.foo == bar
+} -run
+
+# Second request. Will be a cache hit since it is way within the TTL.
+client c2 {
+	txreq -url "/" -hdr "host: example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.foo == bar
+} -run
+
+varnish v1 -expect bans == 1
+
+# Ban request that will invalidate the object already in cache.
+client c3 {
+	txreq -url "/" -req BAN -hdr "host: example.com"
+	rxresp
+	expect resp.status == 201
+} -run
+
+# The ban.list will have one entry since a ban was just added
+varnish v1 -expect bans == 2
+varnish v1 -cliok "ban.list"
+
+# Third GET request will be a cache miss because of the ban.
+client c4 {
+	txreq -url "/" -hdr "host: example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.foo == baz
+} -run
+
+varnish v1 -expect bans == 1
