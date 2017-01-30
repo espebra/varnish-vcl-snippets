@@ -45,7 +45,7 @@ client c1 {
 	txreq -url "/permanent" -hdr "host: example.com"
 	rxresp
 	expect resp.status == 301
-	#expect resp.reason == "Moved Permanently"
+	expect resp.msg == "Moved Permanently"
 	expect resp.http.location == "https://new.example.com/permanent"
 } -run
 
@@ -53,6 +53,6 @@ client c2 {
 	txreq -url "/temporary" -hdr "host: example.com"
 	rxresp
 	expect resp.status == 302
-	#expect resp.reason == "Found"
+	expect resp.msg == "Found"
 	expect resp.http.location == "https://temporary.example.com/temporary"
 } -run
