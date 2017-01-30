@@ -13,30 +13,31 @@ varnish v1 -vcl+backend {
 	vcl 4.0;
 
 	sub vcl_recv {
+		unset req.http.location;
+
 		if (req.url ~ "/permanent") {
-			return(synth(301, "https://new.example.com" + req.url));
+			set req.http.location = "https://new.example.com" + req.url;
+			return(synth(301));
 		}
 
 		if (req.url ~ "/temporary") {
-			return(synth(302, "https://temporary.example.com" + req.url));
+			set req.http.location = "https://temporary.example.com" + req.url;
+			return(synth(302));
 		}
 	}
 
 	sub vcl_synth {
 		# Permanent redirect
 		if (resp.status == 301) {
-			set resp.http.Location = resp.reason;
-			set resp.reason = "Moved Permanently";
+			set resp.http.Location = req.http.location;
 			return (deliver);
 		}
 
 		# Temporary redirect
 		if (resp.status == 302) {
-			set resp.http.Location = resp.reason;
-			set resp.reason = "Found";
+			set resp.http.Location = req.http.location;
 			return (deliver);
 		}
-
 	}
 } -start
 
@@ -44,6 +45,7 @@ client c1 {
 	txreq -url "/permanent" -hdr "host: example.com"
 	rxresp
 	expect resp.status == 301
+	#expect resp.reason == "Moved Permanently"
 	expect resp.http.location == "https://new.example.com/permanent"
 } -run
 
@@ -51,5 +53,6 @@ client c2 {
 	txreq -url "/temporary" -hdr "host: example.com"
 	rxresp
 	expect resp.status == 302
+	#expect resp.reason == "Found"
 	expect resp.http.location == "https://temporary.example.com/temporary"
 } -run
