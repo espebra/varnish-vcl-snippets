@@ -7,6 +7,7 @@ The purpose of this repository is to gather a set of VCL snippets for specific u
 * [Edge Side Includes (ESI)](esi.vtc)
 * [Grace mode and stale-while-revalidate](grace.vtc)
 * [Lurker friendly bans](lurker-friendly-bans.vtc)
+* [Regexp cache invalidation](regexp-cache-invalidation.vtc)
 * [Range requests from clients](range.vtc)
 * [Redirect](redirect.vtc)
 * [Retry a backend request when using a single backend](retry-single-backend.vtc)
