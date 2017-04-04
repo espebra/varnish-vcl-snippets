@@ -1,0 +1,105 @@
+varnishtest "Regexp cache invalidation"
+
+#
+# This test case shows how one invalidation request can invalidate all
+# objects below that object in the path structure.
+#
+# Test case:
+# ----------
+#
+# Objects in cache:
+#  Host: example.com Path: /
+#  Host: example.com Path: /foo/bar
+#  Host: example.com Path: /foo/bar/baz
+#
+# Invalidation request:
+#
+#  BAN /foo HTTP/1.1
+#  Host: Example.com
+#
+# Invalidated objects:
+#  Host: example.com Path: /foo/bar
+#  Host: example.com Path: /foo/bar/baz
+
+
+server s1 -repeat 4 {
+	rxreq
+	txresp
+} -start
+
+varnish v1 -vcl+backend {
+	sub vcl_recv {
+		if (req.method == "BAN") {
+			ban("obj.http.x-host == " + req.http.host +
+				" && obj.http.x-url ~ ^" + req.url + ".*");
+
+	                return(synth(200, "Ban added"));
+		}
+	}
+
+	sub vcl_backend_response {
+		set beresp.http.x-url = bereq.url;
+		set beresp.http.x-host = bereq.http.host;
+	}
+
+	sub vcl_deliver {
+        	if (obj.hits > 0) {
+			set resp.http.x-cache = "HIT";
+		} else {
+			set resp.http.x-cache = "MISS";
+		}
+		unset resp.http.x-url;
+		unset resp.http.x-host;
+	}
+	
+} -start
+
+varnish v1 -cliok ban.list
+varnish v1 -expect bans == 1
+
+client c1 {
+	txreq -url "/" -hdr "host: example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-cache == MISS
+} -run
+
+client c2 {
+	txreq -url "/foo/bar" -hdr "host: example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-cache == MISS
+} -run
+
+client c3 {
+	txreq -url "/foo/bar/baz" -hdr "host: example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-cache == MISS
+} -run
+
+client c4 {
+	txreq -req BAN -url "/foo" -hdr "host: example.com" 
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c5 {
+	txreq -url "/foo/bar" -hdr "host: example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-cache == MISS
+} -run
+
+client c6 {
+	txreq -url "/" -hdr "host: example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-cache == HIT
+        expect resp.http.x-cost == <undef>
+        expect resp.http.x-url == <undef>
+} -run
+
+
+varnish v1 -cliok ban.list
+varnish v1 -expect bans == 2
