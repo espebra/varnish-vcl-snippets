@@ -1,0 +1,53 @@
+varnishtest "Test redirect"
+
+#
+# Elastic Load Balancers in AWS may add the X-Forwarded-Proto request header
+# to each request to identify if the client request is on http or https. This
+# header can be used by Varnish to redirect http content to https.
+#
+
+
+server s1 -repeat 2 {
+	rxreq
+	txresp
+} -start
+
+varnish v1 -vcl+backend {
+	vcl 4.0;
+
+	sub vcl_recv {
+		if (req.http.x-forwarded-proto == "http") {
+	       		set req.http.x-redir = "https://" + req.http.host + req.url;
+			return (synth(301));
+		}
+	}
+	
+	sub vcl_synth {
+		if (resp.status == 301) {
+			set resp.http.Location = req.http.x-redir;
+			return (deliver);
+		}
+	}
+} -start
+
+client c1 {
+	txreq -url "/" -hdr "host: example.com" -hdr "x-forwarded-proto: http"
+	rxresp
+	expect resp.status == 301
+	expect resp.msg == "Moved Permanently"
+	expect resp.http.location == "https://example.com/"
+} -run
+
+client c2 {
+	txreq -url "/" -hdr "host: example.com" -hdr "x-forwarded-proto: https"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.location == <undef>
+} -run
+
+client c3 {
+	txreq -url "/" -hdr "host: example.com"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.location == <undef>
+} -run
