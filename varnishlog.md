@@ -23,3 +23,7 @@ Filter away client requests that contain the request header ``foo``:
 Filter away backend responses that contain the response header ``bar``:
 
     # varnishlog -g request -q "not BerespHeader:bar"
+
+Filter on URL, response status and method:
+
+    # varnishlog -g request -q "ReqUrl ~ '/some/path' and RespStatus == 200 and ReqMethod ~ 'GET'"
