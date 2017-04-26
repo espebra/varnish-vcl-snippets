@@ -6,15 +6,15 @@ The purpose of this repository is to gather a set of VCL snippets for specific u
 
 * [Edge Side Includes (ESI)](esi.vtc)
 * [Grace mode and stale-while-revalidate](grace.vtc)
-* [Serving stale content on slow backend responses](grace-if-slow-backend-request.vtc)
-* [Lurker friendly bans](lurker-friendly-bans.vtc)
-* [Regexp cache invalidation](regexp-cache-invalidation.vtc)
-* [Range requests from clients](range.vtc)
-* [Regular redirect](redirect.vtc)
 * [HTTP to HTTPS redirect based on X-Forwarded-Proto](elb-http-to-https-redirect.vtc)
+* [Lurker friendly bans](lurker-friendly-bans.vtc)
+* [Range requests from clients](range.vtc)
+* [Regexp cache invalidation](regexp-cache-invalidation.vtc)
+* [Regular redirect](redirect.vtc)
 * [Retry a backend request when using a single backend](retry-single-backend.vtc)
 * [Retry a backend request to a new backend when using a random director](retry-random-director.vtc)
 * [Retry a backend request to a new backend when using a round-robin director](retry-round-robin-director.vtc)
+* [Serving stale content on slow backend responses](grace-if-slow-backend-request.vtc)
 
 Pull requests are welcome.
 
