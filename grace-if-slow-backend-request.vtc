@@ -1,0 +1,103 @@
+varnishtest "Grace if slow backend response"
+
+server s1 {
+        rxreq
+        delay 1
+	txresp
+
+	accept
+        rxreq
+        delay 1
+	txresp
+} -start
+
+varnish v1 -vcl+backend {
+	import std;
+
+	sub vcl_hit {
+		# Cache hit within TTL
+		if (obj.ttl >= 0s) {
+			return (deliver);
+		}
+
+		# Deliver from grace if we're within grace and have already
+		# restarted. Based on the assumption that restart means
+		# first_byte_timeout exceeded.
+		if (obj.ttl + obj.grace > 0s && req.restarts > 0) {
+			return (deliver);
+		}
+
+		# Assuming backend is healthy
+		if (obj.ttl + 1s > 0s) {
+			# Accept 1s grace for requests. Should usually be
+			# higher in production (10 by default). Serve graced
+			# object to client while trigger async background fetch.
+    			return (deliver);
+   		} else {
+			# Outside normal grace. Let client wait for backend
+			# fetch.
+    			return (fetch);
+   		}
+	}
+
+        sub vcl_backend_fetch {
+		# Backend requests exceeding this will end up in vcl_synth
+		# with status 503.
+                set bereq.first_byte_timeout = 500ms;
+	}
+
+	sub vcl_backend_response {
+                set beresp.ttl = 1s;
+                set beresp.grace = 10s;
+        }
+
+	sub vcl_deliver {
+		if (resp.status == 503 && req.restarts == 0) {
+			# Got 503, *assuming* we did so because of
+			# first_byte_timeout exceeded.
+			return(restart);
+		}
+		set resp.http.restarts = req.restarts;
+	}
+} -start
+
+# First request should fail because of slow backend.
+client c1 {
+        txreq
+        rxresp
+        expect resp.status == 503
+        expect resp.http.restarts == 1
+} -run
+
+server s1 {
+        rxreq
+        delay 0.3
+        txresp
+} -start
+
+# Second request succeeds because less slow backend.
+client c1 {
+        txreq
+        rxresp
+        expect resp.status == 200
+        expect resp.http.restarts == 0
+        expect resp.http.age == 0
+} -run
+
+delay 2.5
+
+server s1 {
+        rxreq
+        delay 1
+	close
+} -start
+
+# Third request is slow again, but due to restart we end up
+# with a graced object after first_byte_timeout triggers.
+client c1 {
+        txreq
+        rxresp
+        expect resp.status == 200
+        expect resp.http.restarts == 1
+        expect resp.http.age == 3
+} -run
