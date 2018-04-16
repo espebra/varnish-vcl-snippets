@@ -15,6 +15,7 @@ The purpose of this repository is to gather a set of VCL snippets for specific u
 * [Retry a backend request to a new backend when using a random director](retry-random-director.vtc)
 * [Retry a backend request to a new backend when using a round-robin director](retry-round-robin-director.vtc)
 * [Serving stale content on slow backend responses](grace-if-slow-backend-request.vtc)
+* [Vary](vary.vtc)
 
 Pull requests are welcome.
 

@@ -1,0 +1,43 @@
+varnishtest "Vary"
+# Vary on sessionid
+
+# This backend does not specify the vary header, so we'll specify it in VCL.
+server s1 {
+	rxreq
+	txresp -status 200 -body "Content for client 1"
+	expect req.url == "/"
+        expect req.http.sessionid == "1"
+
+	rxreq
+	txresp -status 200 -body "Content for client 2"
+	expect req.url == "/"
+        expect req.http.sessionid == "2"
+} -start
+
+varnish v1 -vcl+backend {
+        sub vcl_backend_response {
+        	# If the backend doesn't specify the vary header, it is
+        	# possible to specify it in VCL:
+		set beresp.http.vary = "sessionid";
+	}
+} -start
+
+# The clients specify the sessionid header 
+client c1 {
+	# Cache miss
+	txreq -url "/" -hdr "host: example.com" -hdr "sessionid: 1"
+	rxresp
+	expect resp.body == "Content for client 1"
+
+	# Cache hit
+	txreq -url "/" -hdr "host: example.com" -hdr "sessionid: 1"
+	rxresp
+	expect resp.body == "Content for client 1"
+} -run
+
+client c2 {
+	# Cache miss bacause of new sessionid value
+	txreq -url "/" -hdr "host: example.com" -hdr "sessionid: 2"
+	rxresp
+	expect resp.body == "Content for client 2"
+} -run
