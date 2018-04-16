@@ -100,7 +100,7 @@ client c1 {
 	expect resp.status == 200
 	expect resp.http.grace == "none"
 
-	delay 0.1;
+	delay 0.1
 
 	txreq -url "/"
 	rxresp
@@ -114,7 +114,7 @@ client c2 {
 	expect resp.status == 200
 	expect resp.http.grace == "none"
 
-	delay 0.1;
+	delay 0.1
 
 	txreq -url "/someimage"
 	rxresp
@@ -124,7 +124,7 @@ client c2 {
 
 
 # Sleeping to get outside TTL on /someimage while still being within TTL on /
-delay 3s;
+delay 3
 
 client c3 {
 	txreq -url "/"
@@ -141,7 +141,7 @@ client c4 {
 } -run
 
 # Sleep some more to get outside TTL on /
-delay 2s;
+delay 2
 
 client c5 {
 	txreq -url "/"
@@ -167,7 +167,7 @@ client c7 {
 	expect resp.http.grace == "full"
 } -run
 
-delay 15s;
+delay 15
 
 # The response to this request is outside TTL and outside normal grace.
 # However, since the backend is sick we get served a fully graced object.
