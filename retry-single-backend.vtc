@@ -1,3 +1,4 @@
+varnishtest "Retry single"
 # Retry a backend request if the backend is unstable and sometimes just closes
 # the connection from Varnish.
 

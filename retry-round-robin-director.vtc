@@ -1,3 +1,4 @@
+varnishtest "Retry round-robin"
 # Gracefully handle backend failures by retrying the request to one of the
 # other backends in a round robin director.
 #

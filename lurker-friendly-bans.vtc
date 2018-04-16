@@ -1,3 +1,4 @@
+varnishtest "Lurker friendly bans"
 # This is an example on how to do lurker friendly bans. Since this example is
 # using exact match on host and URL, purge would be a more effective approach
 # for invalidation.
