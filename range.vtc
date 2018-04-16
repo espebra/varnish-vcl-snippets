@@ -19,7 +19,7 @@ client c1 {
         expect resp.body == foo
 } -run
 
-delay 1.0;
+delay 1
 
 # Ask for the second half of the content.
 # Expect a cache hit.

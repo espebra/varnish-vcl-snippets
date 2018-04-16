@@ -73,7 +73,7 @@ client c2 {
         expect resp.http.age == 0
 } -run
 
-delay 2s;
+delay 2
 
 # Cache hit on the parent within TTL.
 # Cache hit on the fragment within grace (which by default is 10 seconds).
@@ -96,7 +96,7 @@ client c4 {
         expect resp.http.age == 2
 } -run
 
-delay 11s;
+delay 11
 
 # Cache hit on the parent within TTL.
 # Fragment outside the grace period.
@@ -109,7 +109,7 @@ client c5 {
         expect resp.http.age == 13
 } -run
 
-delay 4s;
+delay 4
 
 # Cache hit on the parent within grace.
 # Cache hit on the fragment within grace.
@@ -123,7 +123,7 @@ client c6 {
         expect resp.http.age == 17
 } -run
 
-delay 2s;
+delay 2
 
 # Cache hit on the parent within TTL.
 # Cache hit on the fragment within grace.
